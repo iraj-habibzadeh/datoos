@@ -21,12 +21,6 @@ export default function Pagination({
   totalCount,
   initialLoading = false,
 }: PaginationProps) {
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7242/ingest/b32fa217-93f3-41cf-b402-ce196c46f500',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/Pagination.tsx:18',message:'Pagination render',data:{currentPage,totalPages,hasMore,loading,currentCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-  }
-  // #endregion
-
   // Show "all items" message only when we have data and no more available
   if (!hasMore && currentCount > 0 && totalPages === currentPage) {
     return (

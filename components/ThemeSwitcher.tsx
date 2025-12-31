@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const themes = [
     { value: 'light' as const, label: 'Light', icon: '☀️' },
@@ -13,8 +14,23 @@ export default function ThemeSwitcher() {
     { value: 'green' as const, label: 'Green', icon: '🌿' },
   ];
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showMenu) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (containerRef.current && !containerRef.current.contains(target)) {
+        setShowMenu(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMenu]);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         onClick={() => setShowMenu(!showMenu)}
         className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 green-mode:bg-green-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 green-mode:hover:bg-green-200 transition-colors"

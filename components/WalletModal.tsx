@@ -42,7 +42,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
       // Don't close immediately - wait for connection to complete
       // The modal will close when isConnected becomes true
     } catch (err) {
-      console.error('Failed to connect wallet:', err);
+      // Error is shown in UI via wagmi's error state
     }
   };
 

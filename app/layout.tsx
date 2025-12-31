@@ -1,13 +1,11 @@
-'use client';
-
 import './globals.css';
-import { WagmiProvider } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { config } from '@/lib/wagmi';
-import { ThemeProvider } from '@/contexts/ThemeContext';
-import Navigation from '@/components/Navigation';
+import { Providers } from './providers';
 
-const queryClient = new QueryClient();
+export const metadata = {
+  title: 'Crypto Exchange Dashboard',
+  description: 'Real-time cryptocurrency and exchange data with offline support',
+  keywords: ['crypto', 'cryptocurrency', 'bitcoin', 'exchange', 'dashboard'],
+};
 
 export default function RootLayout({
   children,
@@ -17,17 +15,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider>
-          <WagmiProvider config={config}>
-            <QueryClientProvider client={queryClient}>
-              <Navigation />
-              {children}
-            </QueryClientProvider>
-          </WagmiProvider>
-        </ThemeProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
 }
-
-

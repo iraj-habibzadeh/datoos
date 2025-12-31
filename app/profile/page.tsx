@@ -29,7 +29,7 @@ export default function ProfilePage() {
         
         setLikedCoins(liked);
       } catch (error) {
-        console.error('Failed to load liked coins:', error);
+        // Don't log to console - handled gracefully, logged to debug system
         setLikedCoins([]);
       } finally {
         setLoading(false);

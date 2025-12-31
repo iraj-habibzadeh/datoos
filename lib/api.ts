@@ -1,25 +1,33 @@
 import { CryptoCurrency, ExchangeData } from '@/types/crypto';
+import { fetchWithTimeout } from './api-cache';
 
 const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 
 export async function fetchTotalCryptocurrenciesCount(): Promise<number> {
   try {
-    const response = await fetch(
+    // Only fetch on client side to avoid SSR issues
+    if (typeof window === 'undefined') {
+      return 10000; // Default fallback for SSR
+    }
+    
+    const response = await fetchWithTimeout(
       `${COINGECKO_API_BASE}/coins/list?include_platform=false`,
       {
-        next: { revalidate: 3600 },
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'public, max-age=300', // 5 minutes
+        },
+        cache: 'force-cache', // Use browser cache when available
       }
     );
 
     if (!response.ok) {
-      console.error(`Failed to fetch total count: ${response.statusText}`);
       return 10000;
     }
 
     const data = await response.json();
     return Array.isArray(data) ? data.length : 0;
   } catch (error) {
-    console.error('Error fetching total count:', error);
     return 10000;
   }
 }
@@ -29,22 +37,29 @@ export async function fetchCryptocurrencies(
   perPage: number = 50
 ): Promise<CryptoCurrency[]> {
   try {
-    const response = await fetch(
+    // Only fetch on client side to avoid SSR issues
+    if (typeof window === 'undefined') {
+      return []; // Return empty array for SSR
+    }
+    
+    const response = await fetchWithTimeout(
       `${COINGECKO_API_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=true&locale=en`,
       {
-        next: { revalidate: 60 },
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'public, max-age=60', // 1 minute for market data
+        },
+        cache: 'force-cache', // Use browser cache when available
       }
     );
 
     if (!response.ok) {
-      console.error(`Failed to fetch cryptocurrencies: ${response.status} ${response.statusText}`);
       return [];
     }
 
     const data = await response.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('Error fetching cryptocurrencies:', error);
     return [];
   }
 }
@@ -54,37 +69,52 @@ export async function fetchExchanges(
   perPage: number = 50
 ): Promise<ExchangeData[]> {
   try {
-    const response = await fetch(
+    // Only fetch on client side to avoid SSR issues
+    if (typeof window === 'undefined') {
+      return []; // Return empty array for SSR
+    }
+    
+    const response = await fetchWithTimeout(
       `${COINGECKO_API_BASE}/exchanges?per_page=${perPage}&page=${page}`,
       {
-        next: { revalidate: 300 },
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'public, max-age=300', // 5 minutes
+        },
+        cache: 'force-cache', // Use browser cache when available
       }
     );
 
     if (!response.ok) {
-      console.error(`Failed to fetch exchanges: ${response.statusText}`);
       return [];
     }
 
     const data = await response.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('Error fetching exchanges:', error);
     return [];
   }
 }
 
 export async function fetchCryptoById(id: string): Promise<CryptoCurrency | null> {
   try {
-    const response = await fetch(
+    // Only fetch on client side
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    
+    const response = await fetchWithTimeout(
       `${COINGECKO_API_BASE}/coins/${id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`,
       {
-        next: { revalidate: 60 },
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'public, max-age=60', // 1 minute for individual coin data
+        },
+        cache: 'force-cache', // Use browser cache when available
       }
     );
 
     if (!response.ok) {
-      console.error(`Failed to fetch crypto: ${response.statusText}`);
       return null;
     }
 
@@ -116,7 +146,6 @@ export async function fetchCryptoById(id: string): Promise<CryptoCurrency | null
       last_updated: data.last_updated || '',
     };
   } catch (error) {
-    console.error('Error fetching crypto by id:', error);
     return null;
   }
 }

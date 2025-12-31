@@ -18,9 +18,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     // Get theme from localStorage or default to light
-    const savedTheme = localStorage.getItem('theme') as Theme | null;
-    if (savedTheme && ['light', 'dark', 'green'].includes(savedTheme)) {
-      setThemeState(savedTheme);
+    try {
+      const savedTheme = localStorage.getItem('theme') as Theme | null;
+      if (savedTheme && ['light', 'dark', 'green'].includes(savedTheme)) {
+        setThemeState(savedTheme);
+      }
+    } catch (error) {
+      // Silently handle localStorage errors
     }
   }, []);
 
@@ -66,7 +70,7 @@ export function useTheme() {
     return {
       theme: 'light' as const,
       setTheme: () => {
-        console.warn('useTheme must be used within a ThemeProvider');
+        // Don't log to console - this is a development warning that's handled gracefully
       },
     };
   }

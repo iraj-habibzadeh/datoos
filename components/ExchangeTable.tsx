@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { ExchangeData } from '@/types/crypto';
+import { formatNumber } from '@/lib/utils';
 
 interface ExchangeTableProps {
   data: ExchangeData[];
@@ -27,14 +29,7 @@ export default function ExchangeTable({ data, loading }: ExchangeTableProps) {
     );
   }
 
-  const formatNumber = (value?: number | null) => {
-    if (value === null || value === undefined || isNaN(value)) {
-      return 'N/A';
-    }
-    if (value >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-    if (value >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-    return value.toLocaleString();
-  };
+  // Use utility function from lib/utils.ts
 
   return (
     <div className="overflow-x-auto">
@@ -72,14 +67,16 @@ export default function ExchangeTable({ data, loading }: ExchangeTableProps) {
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
-                  <img
-                    src={exchange.image}
-                    alt={exchange.name}
-                    className="h-8 w-8 rounded-full mr-3"
-                    onError={(e: { target: HTMLImageElement }) => {
-                      e.target.src = 'https://via.placeholder.com/32';
-                    }}
-                  />
+                  <div className="h-8 w-8 rounded-full mr-3 overflow-hidden flex-shrink-0">
+                    <Image
+                      src={exchange.image || 'https://via.placeholder.com/32'}
+                      alt={exchange.name}
+                      width={32}
+                      height={32}
+                      className="rounded-full"
+                      unoptimized
+                    />
+                  </div>
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                       {exchange.name}

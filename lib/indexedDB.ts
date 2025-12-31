@@ -1,4 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { CryptoCurrency, ExchangeData } from '@/types/crypto';
 
 interface CryptoDB extends DBSchema {
   cryptocurrencies: {
@@ -6,6 +7,9 @@ interface CryptoDB extends DBSchema {
     value: {
       id: string;
       data: any;
+      lastUpdated: number;
+    };
+    indexes: {
       lastUpdated: number;
     };
   };
@@ -16,12 +20,18 @@ interface CryptoDB extends DBSchema {
       data: any;
       lastUpdated: number;
     };
+    indexes: {
+      lastUpdated: number;
+    };
   };
   likedCoins: {
     key: string;
     value: {
       id: string;
       coinId: string;
+      timestamp: number;
+    };
+    indexes: {
       timestamp: number;
     };
   };
@@ -37,38 +47,42 @@ export async function getDB(): Promise<IDBPDatabase<CryptoDB>> {
     return dbInstance;
   }
 
-  dbInstance = await openDB<CryptoDB>(DB_NAME, DB_VERSION, {
-    upgrade(db: IDBPDatabase<CryptoDB>, oldVersion, newVersion, transaction) {
-      // Create object store for cryptocurrencies
-      if (!db.objectStoreNames.contains('cryptocurrencies')) {
-        const cryptoStore = db.createObjectStore('cryptocurrencies', {
-          keyPath: 'id',
-        });
-        cryptoStore.createIndex('lastUpdated', 'lastUpdated');
-      }
+  try {
+    dbInstance = await openDB<CryptoDB>(DB_NAME, DB_VERSION, {
+      upgrade(db: IDBPDatabase<CryptoDB>, oldVersion, newVersion, transaction) {
+        // Create object store for cryptocurrencies
+        if (!db.objectStoreNames.contains('cryptocurrencies')) {
+          const cryptoStore = db.createObjectStore('cryptocurrencies', {
+            keyPath: 'id',
+          });
+          cryptoStore.createIndex('lastUpdated', 'lastUpdated');
+        }
 
-      // Create object store for exchanges
-      if (!db.objectStoreNames.contains('exchanges')) {
-        const exchangeStore = db.createObjectStore('exchanges', {
-          keyPath: 'id',
-        });
-        exchangeStore.createIndex('lastUpdated', 'lastUpdated');
-      }
+        // Create object store for exchanges
+        if (!db.objectStoreNames.contains('exchanges')) {
+          const exchangeStore = db.createObjectStore('exchanges', {
+            keyPath: 'id',
+          });
+          exchangeStore.createIndex('lastUpdated', 'lastUpdated');
+        }
 
-      // Create object store for liked coins
-      if (!db.objectStoreNames.contains('likedCoins')) {
-        const likedStore = db.createObjectStore('likedCoins', {
-          keyPath: 'id',
-        });
-        likedStore.createIndex('timestamp', 'timestamp');
-      }
-    },
-  });
+        // Create object store for liked coins
+        if (!db.objectStoreNames.contains('likedCoins')) {
+          const likedStore = db.createObjectStore('likedCoins', {
+            keyPath: 'id',
+          });
+          likedStore.createIndex('timestamp', 'timestamp');
+        }
+      },
+    });
+  } catch (error) {
+    throw error;
+  }
 
   return dbInstance;
 }
 
-export async function saveCryptocurrencies(data: any[]): Promise<void> {
+export async function saveCryptocurrencies(data: CryptoCurrency[]): Promise<void> {
   if (!Array.isArray(data) || data.length === 0) {
     return;
   }
@@ -86,18 +100,17 @@ export async function saveCryptocurrencies(data: any[]): Promise<void> {
   await tx.done;
 }
 
-export async function getCryptocurrencies(): Promise<any[]> {
+export async function getCryptocurrencies(): Promise<CryptoCurrency[]> {
   try {
     const db = await getDB();
     const allRecords = await db.getAll('cryptocurrencies');
-    return allRecords.map((record: { id: string; data: any; lastUpdated: number }) => record.data);
+    return allRecords.map((record: { id: string; data: CryptoCurrency; lastUpdated: number }) => record.data);
   } catch (error) {
-    console.error('Error getting cryptocurrencies:', error);
     return [];
   }
 }
 
-export async function saveExchanges(data: any[]): Promise<void> {
+export async function saveExchanges(data: ExchangeData[]): Promise<void> {
   if (!Array.isArray(data) || data.length === 0) {
     return;
   }
@@ -115,13 +128,13 @@ export async function saveExchanges(data: any[]): Promise<void> {
   await tx.done;
 }
 
-export async function getExchanges(): Promise<any[]> {
+export async function getExchanges(): Promise<ExchangeData[]> {
   try {
     const db = await getDB();
     const allRecords = await db.getAll('exchanges');
-    return allRecords.map((record: { id: string; data: any; lastUpdated: number }) => record.data);
+    return allRecords.map((record: { id: string; data: ExchangeData; lastUpdated: number }) => record.data);
   } catch (error) {
-    console.error('Error getting exchanges:', error);
+    // Don't log to console - handled gracefully with empty array fallback
     return [];
   }
 }
@@ -149,7 +162,7 @@ export async function toggleLikeCoin(coinId: string): Promise<boolean> {
       return true; // Liked
     }
   } catch (error) {
-    console.error('Error toggling like coin:', error);
+    // Don't log to console - handled gracefully with false fallback
     return false;
   }
 }
@@ -160,7 +173,6 @@ export async function isCoinLiked(coinId: string): Promise<boolean> {
     const liked = await db.get('likedCoins', coinId);
     return !!liked;
   } catch (error) {
-    console.error('Error checking if coin is liked:', error);
     return false;
   }
 }
@@ -171,9 +183,12 @@ export async function getLikedCoins(): Promise<string[]> {
     const allLiked = await db.getAll('likedCoins');
     return allLiked.map((item) => item.coinId);
   } catch (error) {
-    console.error('Error getting liked coins:', error);
     return [];
   }
 }
 
+export async function getLikedCoinsSet(): Promise<Set<string>> {
+  const likedIds = await getLikedCoins();
+  return new Set(likedIds);
+}
 

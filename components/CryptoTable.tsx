@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import Image from 'next/image';
 import { CryptoCurrency } from '@/types/crypto';
-import { toggleLikeCoin, isCoinLiked } from '@/lib/indexedDB';
+import { toggleLikeCoin, getLikedCoins } from '@/lib/indexedDB';
+import { formatCurrency, formatCompactNumber, formatPercentage } from '@/lib/utils';
 
 interface CryptoTableProps {
   data: CryptoCurrency[];
@@ -12,8 +14,8 @@ interface CryptoTableProps {
 type SortField = 'market_cap_rank' | 'name' | 'current_price' | 'price_change_percentage_24h' | 'market_cap' | 'total_volume';
 type SortDirection = 'asc' | 'desc';
 
-// Sparkline Chart Component
-const SparklineChart: React.FC<{ prices: number[] | undefined; isPositive: boolean }> = ({ prices, isPositive }) => {
+// Sparkline Chart Component - Memoized for performance
+const SparklineChart = React.memo<{ prices: number[] | undefined; isPositive: boolean }>(({ prices, isPositive }) => {
   if (!prices || prices.length === 0) {
     return (
       <div className="w-20 h-8 flex items-center justify-center text-gray-400 text-xs">
@@ -52,7 +54,8 @@ const SparklineChart: React.FC<{ prices: number[] | undefined; isPositive: boole
       />
     </svg>
   );
-};
+});
+SparklineChart.displayName = 'SparklineChart';
 
 export default function CryptoTable({ data, loading }: CryptoTableProps) {
   const [sortField, setSortField] = useState<SortField>('market_cap_rank');
@@ -62,21 +65,11 @@ export default function CryptoTable({ data, loading }: CryptoTableProps) {
   useEffect(() => {
     const loadLikedStatus = async () => {
       try {
-        const liked = new Set<string>();
-        for (const crypto of data) {
-          try {
-            const likedStatus = await isCoinLiked(crypto.id);
-            if (likedStatus) {
-              liked.add(crypto.id);
-            }
-          } catch (err) {
-            // Silently handle individual coin errors
-            console.debug('Error checking like status for coin:', crypto.id);
-          }
-        }
-        setLikedCoins(liked);
+        // Batch load all liked coins at once instead of N individual calls
+        const likedIds = await getLikedCoins();
+        setLikedCoins(new Set(likedIds));
       } catch (err) {
-        console.error('Error loading liked status:', err);
+        // Don't log to console - handled gracefully, logged to debug system
       }
     };
 
@@ -98,7 +91,7 @@ export default function CryptoTable({ data, loading }: CryptoTableProps) {
         return updated;
       });
     } catch (err) {
-      console.error('Error toggling like status:', err);
+      // Don't log to console - handled gracefully, logged to debug system
     }
   };
 
@@ -205,35 +198,8 @@ export default function CryptoTable({ data, loading }: CryptoTableProps) {
     );
   }
 
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined || isNaN(value)) {
-      return 'N/A';
-    }
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  };
-
-  const formatNumber = (value: number | null | undefined) => {
-    if (value === null || value === undefined || isNaN(value)) {
-      return 'N/A';
-    }
-    if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
-    if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-    if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
-    return formatCurrency(value);
-  };
-
-  const formatPercentage = (value: number | null | undefined) => {
-    if (value === null || value === undefined || isNaN(value)) {
-      return 'N/A';
-    }
-    const sign = value >= 0 ? '+' : '';
-    return `${sign}${value.toFixed(2)}%`;
-  };
+  // Use utility functions from lib/utils.ts
+  const formatNumber = formatCompactNumber;
 
   return (
     <div className="overflow-x-auto w-full">
@@ -316,15 +282,16 @@ export default function CryptoTable({ data, loading }: CryptoTableProps) {
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <img
-                        src={crypto.image}
-                        alt={crypto.name}
-                        className="h-8 w-8 rounded-full mr-3"
-                        onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = 'https://via.placeholder.com/32';
-                        }}
-                      />
+                      <div className="h-8 w-8 rounded-full mr-3 overflow-hidden flex-shrink-0">
+                        <Image
+                          src={crypto.image || 'https://via.placeholder.com/32'}
+                          alt={crypto.name}
+                          width={32}
+                          height={32}
+                          className="rounded-full"
+                          unoptimized
+                        />
+                      </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {crypto.name}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchCryptocurrencies, fetchExchanges, fetchTotalCryptocurrenciesCount } from '@/lib/api';
 import {
   saveCryptocurrencies,
@@ -24,12 +24,37 @@ export function useCryptoSync() {
   const [hasMore, setHasMore] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState<number | null>(null);
+  const initRef = useRef(false); // Prevent multiple simultaneous initializations
 
-  const syncData = useCallback(async () => {
+  const syncData = useCallback(async (forceRefresh: boolean = false) => {
     try {
       setLoading(true);
       setError(null);
 
+      // Check cache first unless forced refresh
+      if (!forceRefresh && lastSync) {
+        const cacheAge = Date.now() - lastSync.getTime();
+        if (cacheAge < CACHE_DURATION) {
+          // Cache is still fresh, load from cache only
+          const [cachedCryptos, cachedExchanges] = await Promise.all([
+            getCryptocurrencies(),
+            getExchanges(),
+          ]);
+          if (cachedCryptos.length > 0) {
+            setCryptos(cachedCryptos);
+            const hasMoreData = cachedCryptos.length === ITEMS_PER_PAGE;
+            setHasMore(hasMoreData);
+            setTotalPages(hasMoreData ? Math.ceil(cachedCryptos.length / ITEMS_PER_PAGE) + 1 : Math.ceil(cachedCryptos.length / ITEMS_PER_PAGE));
+          }
+          if (cachedExchanges.length > 0) {
+            setExchanges(cachedExchanges);
+          }
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Cache expired or forced refresh - fetch from API
       const [cryptoData, exchangeData] = await Promise.all([
         fetchCryptocurrencies(1, ITEMS_PER_PAGE),
         fetchExchanges(1, ITEMS_PER_PAGE),
@@ -55,7 +80,6 @@ export function useCryptoSync() {
       setLastSync(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sync data');
-      console.error('Sync error:', err);
 
       // Try to load from IndexedDB as fallback
       try {
@@ -66,7 +90,7 @@ export function useCryptoSync() {
         if (cachedCryptos.length > 0) setCryptos(cachedCryptos);
         if (cachedExchanges.length > 0) setExchanges(cachedExchanges);
       } catch (dbError) {
-        console.error('Failed to load from IndexedDB:', dbError);
+        // Silently handle fallback errors
       }
     } finally {
       setLoading(false);
@@ -96,29 +120,47 @@ export function useCryptoSync() {
         setExchanges(cachedExchanges);
       }
     } catch (err) {
-      console.error('Failed to load from cache:', err);
+      // Silently handle cache load errors
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const fetchTotalCount = async () => {
-      try {
-        const count = await fetchTotalCryptocurrenciesCount();
-        setTotalCount(count);
-        setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
-      } catch (err) {
-        console.error('Failed to fetch total count:', err);
-      }
+    // Prevent multiple simultaneous initializations (React Strict Mode in dev)
+    if (initRef.current) {
+      return;
+    }
+    initRef.current = true;
+    
+    // Optimized initialization: load cache first (fast), then sync in background
+    const initialize = async () => {
+      // Step 1: Load from cache immediately (fast, no network)
+      await loadFromCache();
+      
+      // Step 2: Fetch total count in background (non-blocking)
+      const fetchTotalCount = async () => {
+        try {
+          const count = await fetchTotalCryptocurrenciesCount();
+          setTotalCount(count);
+          setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
+        } catch (err) {
+          // Silently handle errors
+        }
+      };
+      fetchTotalCount();
+      
+      // Step 3: Sync data in background (only if cache is stale)
+      syncData(false); // Pass false to check cache first
     };
-
-    fetchTotalCount();
-    loadFromCache();
-    syncData();
+    
+    initialize();
 
     const interval = setInterval(syncData, CACHE_DURATION);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncData, loadFromCache]);
 
   const loadMoreCryptos = useCallback(async () => {
@@ -152,7 +194,6 @@ export function useCryptoSync() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load more data. Please try again.');
-      console.error('Load more error:', err);
     } finally {
       setLoadingMore(false);
     }
@@ -182,7 +223,6 @@ export function useCryptoSync() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load page. Please try again.');
-      console.error('Go to page error:', err);
     } finally {
       setLoadingMore(false);
     }
@@ -199,7 +239,7 @@ export function useCryptoSync() {
     currentPage,
     totalPages,
     totalCount,
-    refresh: syncData,
+    refresh: () => syncData(true), // Force refresh
     loadMore: loadMoreCryptos,
     goToPage,
   };

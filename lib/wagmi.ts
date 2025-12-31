@@ -2,15 +2,19 @@ import { createConfig, http } from 'wagmi';
 import { mainnet, sepolia, polygon, arbitrum } from 'wagmi/chains';
 import { coinbaseWallet, walletConnect, injected } from 'wagmi/connectors';
 
-const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || '64fad926e473fde42980c634ee366e96';
+const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
+
+// Build connectors array - in wagmi v2, connectors are safe to create during SSR
+// They only access browser APIs when actually connecting
+const connectors = [
+  injected(),
+  coinbaseWallet({ appName: 'Crypto Exchange Dashboard' }),
+  ...(projectId ? [walletConnect({ projectId })] : []),
+];
 
 export const config = createConfig({
   chains: [mainnet, sepolia, polygon, arbitrum],
-  connectors: [
-    injected(),
-    coinbaseWallet({ appName: 'Crypto Exchange Dashboard' }),
-    ...(projectId && projectId !== 'demo-project-id' ? [walletConnect({ projectId })] : []),
-  ],
+  connectors,
   transports: {
     [mainnet.id]: http(),
     [sepolia.id]: http(),
